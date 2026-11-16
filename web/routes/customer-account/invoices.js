@@ -8,6 +8,23 @@ export function createInvoiceRouter(shopify) {
   const secret = process.env.SHOPIFY_API_SECRET;
   const signature = value => createHmac('sha256', secret).update(value).digest('base64url');
 
+  router.get('/demo', (_req, res) => {
+    res.set('Cache-Control', 'no-store');
+    return res.sendFile(fileURLToPath(new URL('../../assets/invoice-demo.html', import.meta.url)));
+  });
+  router.get('/demo-client.js', (_req, res) => {
+    return res.type('application/javascript').sendFile(fileURLToPath(new URL('../../assets/invoice-demo.js', import.meta.url)));
+  });
+  router.get('/demo-data', (_req, res) => {
+    res.set('Cache-Control', 'no-store');
+    return res.type('application/json').sendFile(fileURLToPath(new URL('../../assets/demo-receipt.json', import.meta.url)));
+  });
+
+  router.get('/demo.pdf', (_req, res) => {
+    res.set('Cache-Control', 'no-store');
+    return res.download(fileURLToPath(new URL('../../assets/demo-receipt.pdf', import.meta.url)), 'demo-receipt.pdf');
+  });
+
   router.post('/', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     if (!secret) return res.status(503).json({error: 'Invoice service is not configured'});
@@ -65,7 +82,7 @@ export function createInvoiceRouter(shopify) {
       const data = JSON.parse(Buffer.from(payload, 'base64url').toString());
       if (!Number.isFinite(data.exp) || data.exp < Date.now()) return res.status(410).send('Download expired. Request your invoice again.');
       if (data.demo) {
-        return res.download(fileURLToPath(new URL('../../assets/demo-receipt.html', import.meta.url)), 'demo-receipt.html');
+        return res.download(fileURLToPath(new URL('../../assets/demo-receipt.pdf', import.meta.url)), 'demo-receipt.pdf');
       }
       const endpoint = new URL(process.env.INVOICE_API_URL);
       if (endpoint.protocol !== 'https:') throw new Error('Invoice API must use HTTPS');

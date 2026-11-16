@@ -9,7 +9,7 @@ Adds **Download invoice** to the action menu of each order in Shopify's new cust
 3. In Shopify's checkout and accounts editor, enable the **Order invoice download** order action. Set **App backend URL** to the public HTTPS URL of this app if different from the default.
 4. Leave `INVOICE_API_URL` empty. Open a signed-in customer's order menu, select **Download invoice**, then download the prepared receipt.
 
-The demo downloads `demo-receipt.html`, a standalone receipt that opens in a browser and can be printed. It contains fixed sample data and is explicitly marked as a demo, not an actual invoice. The selected order ID is sent to the API; no real order data is used for the sample receipt.
+The demo downloads `demo-receipt.pdf`, a standalone sample PDF receipt. It contains fixed sample data and is explicitly marked as a demo, not an actual invoice. The selected order ID is sent to the API; no real order data is used for the sample receipt.
 
 ## Invoice provider
 
@@ -26,3 +26,7 @@ Run backend checks with `node --test web/routes/customer-account/invoices.test.j
 
 
 A visible invoice block is also available on the order details page: in the accounts editor select Order status, add Order invoice download to Main, and save. The order menu action remains available on the orders list.
+
+Demo mode is immediate and does not require order details or a customer session token. Leave **Use live invoice API** disabled in block settings. Its button downloads from `GET /customer-account/invoices/demo.pdf`. Enable the setting only when the real invoice integration is ready.
+
+The demo action now opens `/customer-account/invoices/demo`. The browser requests server-owned sample data from `/customer-account/invoices/demo-data` and generates the PDF locally. Edit `web/assets/demo-receipt.json` to change sample receipt values. No customer data is exposed by this public demo endpoint.

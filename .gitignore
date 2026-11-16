@@ -30,3 +30,7 @@ web/database.sqlite
 # Ignore shopify files created during app dev
 .shopify/*
 .shopify.lock
+# Local PDF generation and preview tools
+/.codex/pdf-tools/
+/tmp/pdf-tools/
+/tmp/pdfs/

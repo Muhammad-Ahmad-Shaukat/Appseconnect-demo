@@ -1,0 +1,12 @@
+{
+  "demo": true,
+  "receiptNumber": "DEMO-001",
+  "storeName": "APPSeCONNECT Demo Store",
+  "customerName": "Sample customer",
+  "currency": "USD",
+  "notice": "DEMO ONLY - sample data. Not proof of payment or a tax invoice.",
+  "items": [{"description": "1 GHz Processor (sample)", "quantity": 1, "unitPrice": 77}],
+  "subtotal": 77,
+  "tax": 0,
+  "total": 77
+}

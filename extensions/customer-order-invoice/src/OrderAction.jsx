@@ -8,9 +8,14 @@ export function InvoiceAction({inline = false}) {
   const [download, setDownload] = useState(null);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
+  const base = String(shopify.settings?.value?.backend_url || 'https://appseconnect-demo.onrender.com').trim().replace(/\/$/, '');
+  const liveInvoices = shopify.settings?.value?.live_invoices === true;
+  const demoDownload = {demo: true, url: `${base}/customer-account/invoices/demo`};
+  const readyDownload = liveInvoices ? download : demoDownload;
   const orderId = shopify.order?.value?.id;
   useEffect(() => {
-    if (!orderId) return;
+    if (!liveInvoices) return;
+    if (!orderId) { setError('Order details are unavailable. Please reopen this invoice from an order.'); return; }
     let cancelled = false;
     async function prepare() {
       setError('');
@@ -33,15 +38,15 @@ export function InvoiceAction({inline = false}) {
     }
     prepare();
     return () => { cancelled = true; };
-  }, [orderId, attempt]);
+  }, [orderId, attempt, liveInvoices, base]);
   const Wrapper = inline ? "s-stack" : "s-customer-account-action";
   return (
     <Wrapper {...(inline ? {} : {heading: "Download invoice"})}>
       {inline ? <s-heading>Invoice</s-heading> : null}
       {error ? <s-banner tone="critical">{error}</s-banner> : null}
-      {!error && !download ? <s-text>Preparing your receipt…</s-text> : null}
-      {download ? <s-text>{download.demo ? 'Demo receipt — sample data, not a tax invoice.' : 'Your invoice is ready.'}</s-text> : null}
-      {download ? <s-button href={download.url} target="_blank">Download invoice</s-button> : null}
+      {!error && !readyDownload ? <s-text>Preparing your receipt…</s-text> : null}
+      {readyDownload ? <s-text>{readyDownload.demo ? 'Demo receipt — sample data, not a tax invoice.' : 'Your invoice is ready.'}</s-text> : null}
+      {readyDownload ? <s-button href={readyDownload.url} target="_blank">Download invoice</s-button> : null}
       {error ? <s-button onClick={() => setAttempt(value => value + 1)}>Try again</s-button> : null}
     </Wrapper>
   );
