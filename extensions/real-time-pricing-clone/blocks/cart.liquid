@@ -443,7 +443,7 @@
           enrichedCartData.shop = window.Shopify.shop;
         }
 
-        const url = 'https://appseconnect-demo.onrender.com/apps/sap-price-test/sapcall';
+        const url = '/apps/sap-price-test/sapcall';
 
         const webhookResponse = await fetch(url, {
           method: 'POST',
@@ -457,7 +457,7 @@
 
         const result = await webhookResponse.json();
 
-        const redisUrl = 'https://appseconnect-demo.onrender.com/apps/sap-price-test/redis-call';
+        const redisUrl = '/apps/sap-price-test/redis-call';
 
         const redisResponse = await fetch(redisUrl, {
           method: 'POST',

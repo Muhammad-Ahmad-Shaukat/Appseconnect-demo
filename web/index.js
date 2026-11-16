@@ -131,11 +131,11 @@ app.get("/api/customers", async (req, res) => {
           (metafield) =>
             metafield.key === "sold_to_number" ||
             metafield.key === "customerid" ||
-            metafield.key === "sap_account_number"
+            (metafield.key === "sap_account_number" || metafield.key === "sap_customer_id")
         );
         if (hasSoldToNumber) {
           for (const metafield of array) {
-            if (metafield.key === "sold_to_number" || metafield.key === "customerid" || metafield.key === "sap_account_number") {
+            if (metafield.key === "sold_to_number" || metafield.key === "customerid" || (metafield.key === "sap_account_number" || metafield.key === "sap_customer_id")) {
               console.log("Found SAP/Customer ID metafield:", metafield.key);
               result["sold_to_number"] = metafield.value;
               result["customer_id"] = metafield.owner_id;
@@ -213,7 +213,7 @@ function doesSoldToNumberExist(metafieldsArray) {
     (metafield) =>
       metafield.key === "sold_to_number" ||
       metafield.key === "customerid" ||
-      metafield.key === "sap_account_number"
+      (metafield.key === "sap_account_number" || metafield.key === "sap_customer_id")
   );
 }
 app.use("/api/carttransformer", shopify.validateAuthenticatedSession(), carttransformerRouter);
@@ -264,7 +264,7 @@ app.get("/api/customersdata", async (req, res) => {
           (metafield) =>
             metafield.key === "sold_to_number" ||
             metafield.key === "customerid" ||
-            metafield.key === "sap_account_number"
+            (metafield.key === "sap_account_number" || metafield.key === "sap_customer_id")
         );
         const soldToNumber = soldToMetafield
           ? soldToMetafield.value
