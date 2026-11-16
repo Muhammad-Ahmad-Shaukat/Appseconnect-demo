@@ -9,7 +9,15 @@ const customerRoleFiled = process.env.CUSTOMER_ROLE;
 const soldToNumberField = process.env.SOLD_TO_NUMBER;
 const custRoleShipTo = process.env.CUSTOMER_ROLE_SHIP_TO;
 const custRoleSoldTo = process.env.CUSTOMER_ROLE_SOLD_TO;
-const TAX_PRODUCT_ID = process.env.TAX_PRODUCT_ID || "10522189955374";
+// Try configured products in order; keep the existing single-ID setting supported.
+const TAX_PRODUCT_IDS = [...new Set(
+  [process.env.TAX_PRODUCT_IDS, process.env.TAX_PRODUCT_ID, "10522189955374"]
+    .filter(Boolean)
+    .flatMap(value => value.split(","))
+    .map(value => value.trim())
+    .filter(Boolean)
+    .map(value => value.startsWith("gid://") ? value : `gid://shopify/Product/${value}`)
+)];
 
 export const getSession = async (shopName) => {
   let response = {
@@ -580,13 +588,16 @@ async function applySapPricesToCart(session, cartbody, sapProducts, totalTaxAmou
     })
     .filter(Boolean);
 
-  const taxProductGid = `gid://shopify/Product/${TAX_PRODUCT_ID}`;
-  const variantLookup = await callStorefrontWithFallback(PRODUCT_VARIANT_LOOKUP_QUERY, {
-    id: taxProductGid,
-  });
-  const taxVariantGid = variantLookup?.product?.variants?.nodes?.[0]?.id || null;
+  let taxVariantGid = null;
+  for (const taxProductGid of TAX_PRODUCT_IDS) {
+    const variantLookup = await callStorefrontWithFallback(PRODUCT_VARIANT_LOOKUP_QUERY, {
+      id: taxProductGid,
+    });
+    taxVariantGid = variantLookup?.product?.variants?.nodes?.[0]?.id || null;
+    if (taxVariantGid) break;
+  }
   if (!taxVariantGid) {
-    console.error("[CartTransform] Could not resolve variant for tax product:", taxProductGid);
+    console.error("[CartTransform] Could not resolve variant for any tax product:", TAX_PRODUCT_IDS);
     return { updated: 0, reason: "tax_variant_not_found" };
   }
   console.log("[CartTransform] Resolved tax variant id:", taxVariantGid);
