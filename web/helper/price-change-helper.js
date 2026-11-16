@@ -3,6 +3,7 @@ import 'dotenv/config';
 import fetch from 'node-fetch';
 import { v4 as uuidv4 } from 'uuid';
 import xml2js from 'xml2js';
+import {ensurePricingTransform} from './pricing-transform.js';
 import { getRedisConfigForShop, createRedisClient, getRedisPricesForSkus } from './redis-pricing.js';
 import { PriceChangeDB } from '../price-change-db.js';
 
@@ -515,6 +516,7 @@ async function applySapPricesToCart(session, cartbody, sapProducts, totalTaxAmou
   // Their tokens are not Storefront API Cart IDs.
   const ajaxItems = cartbody.data?.items;
   if (Array.isArray(ajaxItems) && ajaxItems.every(item => item.key)) {
+    await ensurePricingTransform(session);
     const prices = new Map((sapProducts || []).map(item => [
       String(item.sku || '').trim(), Number(item.totalitemprice) / Number(item.quantity)
     ]));

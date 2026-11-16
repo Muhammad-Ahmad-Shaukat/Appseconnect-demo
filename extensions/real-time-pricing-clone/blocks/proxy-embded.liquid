@@ -301,6 +301,20 @@
               });
               if (!result.ok) throw new Error('Could not add tax to cart');
             }
+            const pricedCartResponse = await fetch(`${root}cart.js`, {cache: 'no-store'});
+            if (!pricedCartResponse.ok) throw new Error('Could not verify checkout prices');
+            const pricedCart = await pricedCartResponse.json();
+            for (const update of data.cartUpdates || []) {
+              const variantId = String(update.key).split(':')[0];
+              const actualLine = pricedCart.items.find(item =>
+                String(item.variant_id) === variantId &&
+                String(item.properties?.sap_price) === String(update.properties.sap_price)
+              );
+              const expected = Math.round(Number(update.properties.sap_price) * 100);
+              if (!actualLine || Math.abs(Number(actualLine.final_price) - expected) > 1) {
+                throw new Error('Shopify has not applied the SAP price. The store pricing function must be activated and supported by your Shopify plan. Checkout stopped to prevent an incorrect charge.');
+              }
+            }
             hideLoader();
             console.log("[SAP Checkout] Job completed, redirecting to checkout URL:", data.redirectUrl);
             window.location.href = data.redirectUrl;
@@ -315,6 +329,7 @@
         })
         .catch(error => {
           console.error("[SAP Checkout] Error checking status (pollJobStatus):", error);
+          window.alert(error.message || "Unable to verify checkout pricing. Please try again.");
           clearInterval(interval);
           hideLoader();
           window.location.href = "/cart";

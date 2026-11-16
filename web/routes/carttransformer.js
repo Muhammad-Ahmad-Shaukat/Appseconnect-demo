@@ -55,6 +55,10 @@ router.post("/activate", async (req, res) => {
       return res.status(500).json({ errors: result.errors });
     }
 
+    const userErrors = result.data?.cartTransformCreate?.userErrors;
+    if (userErrors?.length || !result.data?.cartTransformCreate?.cartTransform?.id) {
+      return res.status(422).json({error: userErrors?.map(error => error.message).join('; ') || 'Cart Transform was not created', userErrors});
+    }
     if (response.ok) {
       console.log("Cart Transformer activated successfully:", result.data);
       return res.status(200).json(result.data);
