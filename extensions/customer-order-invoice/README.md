@@ -22,4 +22,7 @@ The provider receives a GET with `orderId` (Shopify Order GID), `customerId` (Sh
 
 API paths: `POST /customer-account/invoices` prepares the link; `GET /customer-account/invoices/download?ticket=...` downloads the file. The API requires the app's existing customer/order scopes and protected customer data access for the signed-in customer claim. Access to orders older than 60 days additionally needs Shopify's approved `read_all_orders` scope.
 
-Run backend checks with `node --test web/routes/customer-account/invoices.test.js`.
+Run backend checks with `node --test web/routes/customer-account/invoices.test.js`.
+
+
+A visible invoice block is also available on the order details page: in the accounts editor select Order status, add Order invoice download to Main, and save. The order menu action remains available on the orders list.

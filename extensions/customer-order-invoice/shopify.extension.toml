@@ -1,25 +1,23 @@
-api_version = "2026-01"
-
-[[extensions]]
-name = "Order invoice download"
+api_version = "2026-01"
+[[extensions]]
+name = "Order invoice download"
 handle = "customer-order-invoice"
-
-uid = "dd623572-704d-ca5a-05be-724462046532209cfb85"
-type = "ui_extension"
-
-[[extensions.targeting]]
-module = "./src/OrderMenu.jsx"
-target = "customer-account.order.action.menu-item.render"
-
-[[extensions.targeting]]
-module = "./src/OrderAction.jsx"
-target = "customer-account.order.action.render"
-
-[extensions.capabilities]
-network_access = true
-
-[[extensions.settings.fields]]
-key = "backend_url"
-type = "single_line_text_field"
-name = "App backend URL"
-description = "Public HTTPS app URL, for example https://appseconnect-demo.onrender.com"
+uid = "dd623572-704d-ca5a-05be-724462046532209cfb85"
+type = "ui_extension"
+[[extensions.targeting]]
+module = "./src/OrderMenu.jsx"
+target = "customer-account.order.action.menu-item.render"
+[[extensions.targeting]]
+module = "./src/OrderAction.jsx"
+target = "customer-account.order.action.render"
+[[extensions.targeting]]
+module = "./src/OrderBlock.jsx"
+target = "customer-account.order-status.block.render"
+
+[extensions.capabilities]
+network_access = true
+[[extensions.settings.fields]]
+key = "backend_url"
+type = "single_line_text_field"
+name = "App backend URL"
+description = "Public HTTPS app URL, for example https://appseconnect-demo.onrender.com"
