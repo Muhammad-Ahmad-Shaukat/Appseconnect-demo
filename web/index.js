@@ -13,6 +13,7 @@ import carttransformerRouter from './routes/carttransformer.js';
 import shopify from './shopify.js';
 import webhookHandlers from './webhook-handlers.js';
 import cors from 'cors';
+import {createInvoiceRouter} from './routes/customer-account/invoices.js';
 
 let query;
 const STATIC_PATH =
@@ -23,7 +24,7 @@ const STATIC_PATH =
 const app = express();
 
 app.use((req, res, next) => {
-  console.log(`[DEBUG] Incoming Request: ${req.method} ${req.url}`);
+  console.log(`[DEBUG] Incoming Request: ${req.method} ${req.path}`);
   next();
 });
 
@@ -69,6 +70,8 @@ app.post(
 
 // Initialize body parser for all subsequent routes
 bodyParserPrewiring(app);
+
+app.use("/customer-account/invoices", createInvoiceRouter(shopify));
 
 // Proxy routes for storefront
 app.use("/apps/sap-price-test", proxyRouter);
