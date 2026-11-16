@@ -279,11 +279,28 @@
           }
           return response.json();
         })
-        .then(data => {
+        .then(async data => {
           console.log("[SAP Checkout] Job status payload:", data);
 
           if (data.status === "completed" && data.redirectUrl) {
             clearInterval(interval);
+            const root = window.Shopify?.routes?.root || '/';
+            for (const update of data.cartUpdates || []) {
+              const result = await fetch(`${root}cart/change.js`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: update.key, quantity: update.quantity, properties: update.properties}),
+              });
+              if (!result.ok) throw new Error('Could not apply checkout prices to cart');
+            }
+            if (data.taxLine) {
+              const result = await fetch(`${root}cart/add.js`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({items: [{id: data.taxLine.variantId, quantity: 1, properties: {sap_price: data.taxLine.price}}]}),
+              });
+              if (!result.ok) throw new Error('Could not add tax to cart');
+            }
             hideLoader();
             console.log("[SAP Checkout] Job completed, redirecting to checkout URL:", data.redirectUrl);
             window.location.href = data.redirectUrl;

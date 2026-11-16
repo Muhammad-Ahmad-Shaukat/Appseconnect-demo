@@ -125,7 +125,9 @@ proxyRouter.post("/createDraftOrder", async (req, res) => {
     const response = await getCheckout(shop, req.body);
     jobs[jobId] = {
       status: "completed",
-      redirectUrl: response,
+      redirectUrl: typeof response === "string" ? response : response.redirectUrl,
+      cartUpdates: response?.cartUpdates,
+      taxLine: response?.taxLine,
     };
     console.log("jobs:", jobs)
     console.log(`Job ${jobId} completed. Redirect URL: ${response}`);
@@ -154,7 +156,7 @@ proxyRouter.post("/check-checkout-url", (req, res) => {
   }
 
   if (job.status === "completed" || job.status === "failed") {
-    res.status(200).send({ status: job.status, redirectUrl: job.redirectUrl, error: job.error });
+    res.status(200).send({ status: job.status, redirectUrl: job.redirectUrl, cartUpdates: job.cartUpdates, taxLine: job.taxLine, error: job.error });
   } else {
     res.status(200).send({ status: job.status });
   }

@@ -12,7 +12,7 @@ const custRoleShipTo = process.env.CUSTOMER_ROLE_SHIP_TO;
 const custRoleSoldTo = process.env.CUSTOMER_ROLE_SOLD_TO;
 // Try configured products in order; keep the existing single-ID setting supported.
 const TAX_PRODUCT_IDS = [...new Set(
-  [process.env.TAX_PRODUCT_IDS, process.env.TAX_PRODUCT_ID, "10522189955374"]
+  [process.env.TAX_PRODUCT_IDS, process.env.TAX_PRODUCT_ID, "15454387831076", "10522189955374"]
     .filter(Boolean)
     .flatMap(value => value.split(","))
     .map(value => value.trim())
@@ -196,7 +196,9 @@ export const getCheckout = async (shop, cartbody) => {
           }
         }
 
-        const productSkus = await filterCartLineItems(lineItems);
+        const productSkus = await filterCartLineItems(lineItems.filter(item =>
+          !TAX_PRODUCT_IDS.includes(`gid://shopify/Product/${item.product_id}`)
+        ));
 
         if (productSkus.length !== 0) {
           console.log(`[PriceChangeHelper] Resolving SAP Customer ID for shop: ${session.shop}, customerId: ${custId}`);
@@ -329,6 +331,9 @@ export const getCheckout = async (shop, cartbody) => {
                       totalTaxAmountFromSap
                     );
                     console.log("[getCheckout] Cart Transform sap_price apply result:", applyResult);
+                    if (applyResult?.cartUpdates?.length) {
+                      return {redirectUrl: "/checkout", cartUpdates: applyResult.cartUpdates, taxLine: applyResult.taxLine};
+                    }
                     if (!applyResult || applyResult.updated <= 0) {
                       console.error(
                         "[getCheckout] sap_price not written to cart lines, stopping checkout redirect.",
@@ -506,6 +511,42 @@ function resolveCartIdFromBody(cartbody) {
 }
 
 async function applySapPricesToCart(session, cartbody, sapProducts, totalTaxAmountFromSap = 0) {
+  // Online Store carts must be updated in the buyer's browser through the Ajax API.
+  // Their tokens are not Storefront API Cart IDs.
+  const ajaxItems = cartbody.data?.items;
+  if (Array.isArray(ajaxItems) && ajaxItems.every(item => item.key)) {
+    const prices = new Map((sapProducts || []).map(item => [
+      String(item.sku || '').trim(), Number(item.totalitemprice) / Number(item.quantity)
+    ]));
+    const cartUpdates = ajaxItems.flatMap(item => {
+      const price = prices.get(String(item.sku || '').trim());
+      return Number.isFinite(price) && price >= 0
+        ? [{key: item.key, quantity: item.quantity, properties: {...(item.properties || {}), sap_price: String(price)}}]
+        : [];
+    });
+    let taxLine = null;
+    if (totalTaxAmountFromSap !== null) {
+      const taxAmount = Number(totalTaxAmountFromSap);
+      if (!Number.isFinite(taxAmount) || taxAmount < 0) throw new Error('Invalid SAP tax amount');
+      const existingTax = ajaxItems.find(item => TAX_PRODUCT_IDS.includes(`gid://shopify/Product/${item.product_id}`));
+      if (existingTax) {
+        cartUpdates.push({key: existingTax.key, quantity: 1, properties: {...(existingTax.properties || {}), sap_price: String(taxAmount)}});
+      } else if (taxAmount > 0) {
+        for (const productGid of TAX_PRODUCT_IDS) {
+          const response = await fetch(`https://${session.shop}/admin/api/2024-10/products/${productGid.split('/').pop()}.json`, {
+            headers: {'X-Shopify-Access-Token': session.accessToken},
+          });
+          if (!response.ok) continue;
+          const data = await response.json();
+          const variantId = data.product?.variants?.[0]?.id;
+          if (variantId) { taxLine = {variantId, price: String(taxAmount)}; break; }
+        }
+        if (!taxLine) throw new Error('Tax product variant not found');
+      }
+    }
+    return {updated: cartUpdates.length, cartUpdates, taxLine};
+  }
+
   const cartIdRaw = resolveCartIdFromBody(cartbody);
   if (!cartIdRaw) {
     console.log("[CartTransform] No cart id/token found in request body. Cannot write sap_price attributes.");
