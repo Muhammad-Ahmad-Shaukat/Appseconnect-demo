@@ -3,6 +3,7 @@ import 'dotenv/config';
 import fetch from 'node-fetch';
 import { v4 as uuidv4 } from 'uuid';
 import xml2js from 'xml2js';
+import { getRedisConfigForShop, createRedisClient, getRedisPricesForSkus } from './redis-pricing.js';
 import { PriceChangeDB } from '../price-change-db.js';
 
 const customerRoleFiled = process.env.CUSTOMER_ROLE;
@@ -207,6 +208,29 @@ export const getCheckout = async (shop, cartbody) => {
             return "/cart";
           }
 
+          let cachedPrices = {};
+          const redisConfig = await getRedisConfigForShop(shop);
+          if (redisConfig) {
+            const redis = createRedisClient(redisConfig);
+            try {
+              const result = await getRedisPricesForSkus(redis, sapCustomerId, productSkus);
+              cachedPrices = result.priceMap;
+            } finally {
+              redis.disconnect();
+            }
+          }
+          const missingProducts = productSkus.filter(
+            item => cachedPrices[String(item.sku).trim()] === undefined
+          );
+          const cachedProducts = productSkus
+            .filter(item => cachedPrices[String(item.sku).trim()] !== undefined)
+            .map(item => ({
+              sku: String(item.sku).trim(),
+              quantity: item.qty,
+              totalitemprice: cachedPrices[String(item.sku).trim()] * Number(item.qty),
+            }));
+          console.log(`[getCheckout] Redis prices: ${cachedProducts.length}; SAP prices needed: ${missingProducts.length}`);
+
           var custFilteredMetaFields = [
             { key: process.env.SOLD_TO_NUMBER, value: sapCustomerId },
             { key: process.env.SHIP_TO_NUMBER, value: sapCustomerId },
@@ -226,15 +250,14 @@ export const getCheckout = async (shop, cartbody) => {
             const productPriceUpdateCollection =
               createProductPriceUpdateCollection(
                 simulationId,
-                productSkus,
+                missingProducts,
                 customer
               );
 
 
-            const apiResponse = await clientApi(
-              productPriceUpdateCollection,
-              shop
-            );
+            const apiResponse = missingProducts.length
+              ? await clientApi(productPriceUpdateCollection, shop)
+              : { line_items: { line_item: cachedProducts } };
             console.log("Response from client api=>", apiResponse);
 
             let cartItemsFromSap;
@@ -248,7 +271,9 @@ export const getCheckout = async (shop, cartbody) => {
 
               if (cartItemsFromSap && cartItemsFromSap.line_items) {
                 shippingCost = cartItemsFromSap.TotalShipping;
-                totalTaxAmountFromSap = Number(cartItemsFromSap.TotalTaxAmount || 0);
+                totalTaxAmountFromSap = cachedProducts.length === 0
+                  ? Number(cartItemsFromSap.TotalTaxAmount || 0)
+                  : null;
 
                 lineItemsFromSap = cartItemsFromSap.line_items.line_item;
                 if (Array.isArray(lineItemsFromSap)) {
@@ -257,6 +282,12 @@ export const getCheckout = async (shop, cartbody) => {
                   sapProducts = [lineItemsFromSap];
                 }
 
+                // Cached unit prices take precedence over any prices returned by SAP.
+                const cachedSkus = new Set(cachedProducts.map(item => item.sku));
+                sapProducts = [
+                  ...sapProducts.filter(item => !cachedSkus.has(String(item.sku || "").trim())),
+                  ...cachedProducts,
+                ];
                 if (sapProducts && sapProducts.length) {
                   // Cart pricing is applied by Cart Transform from cart line sap_price attributes.
                   // Here we only validate SAP pricing response and continue checkout flow.
@@ -588,51 +619,55 @@ async function applySapPricesToCart(session, cartbody, sapProducts, totalTaxAmou
     })
     .filter(Boolean);
 
-  let taxVariantGid = null;
-  for (const taxProductGid of TAX_PRODUCT_IDS) {
-    const variantLookup = await callStorefrontWithFallback(PRODUCT_VARIANT_LOOKUP_QUERY, {
-      id: taxProductGid,
-    });
-    taxVariantGid = variantLookup?.product?.variants?.nodes?.[0]?.id || null;
-    if (taxVariantGid) break;
-  }
-  if (!taxVariantGid) {
-    console.error("[CartTransform] Could not resolve variant for any tax product:", TAX_PRODUCT_IDS);
-    return { updated: 0, reason: "tax_variant_not_found" };
-  }
-  console.log("[CartTransform] Resolved tax variant id:", taxVariantGid);
-  const taxAmount = Number(totalTaxAmountFromSap || 0);
-  const existingTaxLine = lines.find(
-    (line) => String(line?.merchandise?.id || "") === taxVariantGid
-  );
-
-  if (existingTaxLine) {
-    const currentTaxSapPrice = (existingTaxLine.attributes || []).find(
-      (attr) => attr.key === "sap_price"
-    )?.value;
-    if (currentTaxSapPrice !== String(taxAmount)) {
-      updateLines.push({
-        id: existingTaxLine.id,
-        attributes: [{ key: "sap_price", value: String(taxAmount) }],
+  // Redis contains unit prices only; a partial SAP response is not a full-cart tax total.
+  if (totalTaxAmountFromSap !== null) {
+    let taxVariantGid = null;
+    for (const taxProductGid of TAX_PRODUCT_IDS) {
+      const variantLookup = await callStorefrontWithFallback(PRODUCT_VARIANT_LOOKUP_QUERY, {
+        id: taxProductGid,
       });
+      taxVariantGid = variantLookup?.product?.variants?.nodes?.[0]?.id || null;
+      if (taxVariantGid) break;
     }
-  } else {
-    const addData = await callStorefrontWithFallback(CART_LINES_ADD_MUTATION, {
-      cartId,
-      lines: [
-        {
-          merchandiseId: taxVariantGid,
-          quantity: 1,
+    if (!taxVariantGid) {
+      console.error("[CartTransform] Could not resolve variant for any tax product:", TAX_PRODUCT_IDS);
+      return { updated: 0, reason: "tax_variant_not_found" };
+    }
+    console.log("[CartTransform] Resolved tax variant id:", taxVariantGid);
+    const taxAmount = Number(totalTaxAmountFromSap || 0);
+    const existingTaxLine = lines.find(
+      (line) => String(line?.merchandise?.id || "") === taxVariantGid
+    );
+
+    if (existingTaxLine) {
+      const currentTaxSapPrice = (existingTaxLine.attributes || []).find(
+        (attr) => attr.key === "sap_price"
+      )?.value;
+      if (currentTaxSapPrice !== String(taxAmount)) {
+        updateLines.push({
+          id: existingTaxLine.id,
           attributes: [{ key: "sap_price", value: String(taxAmount) }],
-        },
-      ],
-    });
-    const addErrs = addData?.cartLinesAdd?.userErrors || [];
-    if (addErrs.length) {
-      console.error("[CartTransform] cartLinesAdd userErrors for tax line:", addErrs);
-      return { updated: 0, reason: "tax_line_add_user_errors", errors: addErrs };
+        });
+      }
+    } else {
+      const addData = await callStorefrontWithFallback(CART_LINES_ADD_MUTATION, {
+        cartId,
+        lines: [
+          {
+            merchandiseId: taxVariantGid,
+            quantity: 1,
+            attributes: [{ key: "sap_price", value: String(taxAmount) }],
+          },
+        ],
+      });
+      const addErrs = addData?.cartLinesAdd?.userErrors || [];
+      if (addErrs.length) {
+        console.error("[CartTransform] cartLinesAdd userErrors for tax line:", addErrs);
+        return { updated: 0, reason: "tax_line_add_user_errors", errors: addErrs };
+      }
+      console.log("[CartTransform] Tax line added to cart with sap_price:", taxAmount);
     }
-    console.log("[CartTransform] Tax line added to cart with sap_price:", taxAmount);
+
   }
 
   if (!updateLines.length) {
