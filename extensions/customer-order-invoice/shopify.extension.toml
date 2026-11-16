@@ -21,9 +21,3 @@ key = "backend_url"
 type = "single_line_text_field"
 name = "App backend URL"
 description = "Public HTTPS app URL, for example https://appseconnect-demo.onrender.com"
-
-[[extensions.settings.fields]]
-key = "live_invoices"
-type = "boolean"
-name = "Use live invoice API"
-description = "Leave disabled to download the demo PDF immediately."

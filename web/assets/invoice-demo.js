@@ -22,6 +22,20 @@ if (typeof document !== 'undefined') {
   const status = document.getElementById('status');
   const download = document.getElementById('download');
   const retry = document.getElementById('retry');
+  function returnToOrders() {
+    if (document.referrer) {
+      try {
+        const previous = new URL(document.referrer);
+        if (previous.protocol === 'https:' && (previous.hostname === 'shopify.com' || previous.hostname.endsWith('.myshopify.com'))) {
+          window.location.replace(previous.href);
+          return;
+        }
+      } catch {}
+    }
+    if (window.history.length > 1) window.history.back();
+    else { window.close(); status.textContent = 'You can close this tab and return to your orders.'; }
+  }
+  document.getElementById('back')?.addEventListener('click', returnToOrders);
   let objectUrl;
   async function prepare() {
     retry.hidden = true;
@@ -39,6 +53,8 @@ if (typeof document !== 'undefined') {
       download.hidden = false;
       status.textContent = 'Demo receipt ready. If the download does not start, click Download PDF.';
       download.click();
+      // Browsers do not expose download completion; return after starting it.
+      setTimeout(returnToOrders, 2000);
     } catch (error) {
       status.textContent = error.message || 'Unable to download receipt.';
       retry.hidden = false;

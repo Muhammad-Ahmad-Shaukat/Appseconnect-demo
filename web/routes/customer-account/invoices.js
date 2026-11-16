@@ -1,4 +1,6 @@
 import {Router} from 'express';
+import {readFile} from 'node:fs/promises';
+import {buildReceiptPdf} from '../../assets/invoice-demo.js';
 import {createHmac, timingSafeEqual} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {PriceChangeDB} from '../../price-change-db.js';
@@ -20,9 +22,15 @@ export function createInvoiceRouter(shopify) {
     return res.type('application/json').sendFile(fileURLToPath(new URL('../../assets/demo-receipt.json', import.meta.url)));
   });
 
-  router.get('/demo.pdf', (_req, res) => {
+  router.get('/demo.pdf', async (_req, res) => {
     res.set('Cache-Control', 'no-store');
-    return res.download(fileURLToPath(new URL('../../assets/demo-receipt.pdf', import.meta.url)), 'demo-receipt.pdf');
+    try {
+      const receipt = JSON.parse(await readFile(new URL('../../assets/demo-receipt.json', import.meta.url), 'utf8'));
+      return res.type('application/pdf').attachment('demo-receipt.pdf').send(Buffer.from(buildReceiptPdf(receipt), 'ascii'));
+    } catch (error) {
+      console.error('[Invoice] Demo download failed:', error.message);
+      return res.status(500).send('Unable to download receipt. Please go back and try again.');
+    }
   });
 
   router.post('/', async (req, res) => {

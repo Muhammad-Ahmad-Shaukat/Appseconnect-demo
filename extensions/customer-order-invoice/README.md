@@ -30,3 +30,7 @@ A visible invoice block is also available on the order details page: in the acco
 Demo mode is immediate and does not require order details or a customer session token. Leave **Use live invoice API** disabled in block settings. Its button downloads from `GET /customer-account/invoices/demo.pdf`. Enable the setting only when the real invoice integration is ready.
 
 The demo action now opens `/customer-account/invoices/demo`. The browser requests server-owned sample data from `/customer-account/invoices/demo-data` and generates the PDF locally. Edit `web/assets/demo-receipt.json` to change sample receipt values. No customer data is exposed by this public demo endpoint.
+
+For the current demo release, the extension always shows **Download demo PDF** immediately. The old live-invoice toggle is removed, so previously saved settings cannot cause the extension to wait for order data. The real invoice API routes remain on the backend for future integration. If the account page still says **Preparing your receipt**, it is running an older extension release.
+
+The latest demo uses a direct PDF attachment URL for the order action and inline button, without a modal or explanatory text. The server generates this attachment from its JSON receipt data. The older browser-generation page remains a fallback with a Back to orders button and a return attempt two seconds after download starts (browsers do not report download completion).
